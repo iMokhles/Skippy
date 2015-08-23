@@ -48,6 +48,18 @@ __attribute__((visibility("hidden")))
 
 static const bool kSkippyView = false;
 
+static void CancelSkippyForIndex(UIControl *target)
+{
+	SkippyView *skippy = objc_getAssociatedObject(target.window, &kSkippyView);
+	[UIView animateWithDuration:0.3 delay:0.25 options:UIViewAnimationOptionBeginFromCurrentState animations:^{
+		skippy.alpha = 0.0;
+	} completion:^(BOOL finished) {
+		if (finished) {
+			skippy.hidden = YES;
+		}
+	}];
+}
+
 @interface UITableViewIndex : UIControl
 @property (nonatomic,readonly) NSString *selectedSectionTitle;
 @end
@@ -74,18 +86,6 @@ static const bool kSkippyView = false;
 	[UIView animateWithDuration:0.00 delay:0.0 options:UIViewAnimationOptionBeginFromCurrentState animations:^{
 		skippy.alpha = 1.0;
 	} completion:NULL];
-}
-
-static void CancelSkippyForIndex(UITableViewIndex *self)
-{
-	SkippyView *skippy = objc_getAssociatedObject(self.window, &kSkippyView);
-	[UIView animateWithDuration:0.5 delay:0.25 options:UIViewAnimationOptionBeginFromCurrentState animations:^{
-		skippy.alpha = 0.0;
-	} completion:^(BOOL finished) {
-		if (finished) {
-			skippy.hidden = YES;
-		}
-	}];
 }
 
 - (void)cancelTrackingWithEvent:(UIEvent *)event
@@ -117,3 +117,59 @@ static void CancelSkippyForIndex(UITableViewIndex *self)
 
 %end
 
+#pragma mark - Music App
+
+@interface SKUIAttributedStringIndexBarEntry
+@property (nonatomic,copy,readonly) NSAttributedString * attributedString; 
+@end
+
+@interface SKUIIndexBarControl : UIControl
+@end
+
+@interface MusicLibraryViewController : UIViewController
+-(id)indexBarControl:(id)arg1 entryAtIndexPath:(id)arg2;
+@end
+
+%hook MusicLibraryViewController
+-(void)indexBarControl:(id)arg1 didSelectEntryAtIndexPath:(id)arg2 {
+
+	%orig();
+	SKUIAttributedStringIndexBarEntry *currentIndex = [self indexBarControl:arg1 entryAtIndexPath:arg2];
+	UIWindow *window = [UIApplication sharedApplication].keyWindow;
+	SkippyView *skippy = objc_getAssociatedObject(window, &kSkippyView);
+	if (!skippy) {
+		UIView *targetView = window.rootViewController.view ?: window.subviews[0];
+		skippy = [[[SkippyView alloc] initWithFrame:targetView.bounds] autorelease];
+		skippy.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+		skippy.alpha = 0.0;
+		[targetView addSubview:skippy];
+		objc_setAssociatedObject(window, &kSkippyView, skippy, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+	} else {
+		[skippy.superview bringSubviewToFront:skippy];
+		skippy.hidden = NO;
+	}
+	skippy.label.text = currentIndex.attributedString.string;
+	[UIView animateWithDuration:0.00 delay:0.0 options:UIViewAnimationOptionBeginFromCurrentState animations:^{
+		skippy.alpha = 1.0;
+	} completion:NULL];
+}
+%end
+
+%hook SKUIIndexBarControl
+
+-(void)cancelTrackingWithEvent:(id)arg1 {
+	%orig();
+	CancelSkippyForIndex(self);
+}
+-(BOOL)continueTrackingWithTouch:(id)arg1 withEvent:(id)arg2 {
+	BOOL result = %orig();
+	if (!result) {
+		CancelSkippyForIndex(self);
+	}
+	return result;
+}
+-(void)endTrackingWithTouch:(id)arg1 withEvent:(id)arg2 {
+	%orig();
+	CancelSkippyForIndex(self);
+}
+%end
