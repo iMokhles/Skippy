@@ -7,7 +7,7 @@ IPHONE_ARCHS = armv7 arm64
 ADDITIONAL_CFLAGS = -std=c99
 TARGET_IPHONEOS_DEPLOYMENT_VERSION = 8.0
 
-TWEAK_TARGET_PROCESS = MobilePhone
+TWEAK_TARGET_PROCESS = MobilePhone Music
 
 include framework/makefiles/common.mk
 include framework/makefiles/tweak.mk
